@@ -1585,11 +1585,36 @@ export type MonthlyReportDay = {
   totalPausedMinutes: number;
 };
 
+/**
+ * Month-long condition of a single dialysis unit (machine). Everything here is
+ * derived from completed sessions plus the machine's current status — there is
+ * no status-change history table, so "status" is where the unit stands today,
+ * not where it was during the month.
+ */
+export type MonthlyUnitCondition = {
+  machineId: number;
+  label: string;
+  /** Current physical status, as of running the report. */
+  status: MachineStatus;
+  statusNote: string | null;
+  sessions: number;
+  treatmentHours: number;
+  pausedMinutes: number;
+  /** Distinct days this unit ran at least one session. */
+  daysUsed: number;
+  /** Sessions ended with the "needs repair" flag — fault events on this unit. */
+  repairFlags: number;
+  /** ISO date (Asia/Manila) of the most recent session, null if unused. */
+  lastUsed: string | null;
+};
+
 export type MonthlyBoardReport = {
   floorId: number;
   floorName: string | null;
   month: string; // YYYY-MM
   days: MonthlyReportDay[];
+  /** Per-machine condition for the month, busiest first. */
+  units: MonthlyUnitCondition[];
   totals: {
     sessionsEnded: number;
     peakMachinesUtilized: number;
@@ -1601,6 +1626,20 @@ export type MonthlyBoardReport = {
     waitingAdds: { normal: number; urgent: number; veryUrgent: number; total: number };
     totalPausedMinutes: number;
     daysWithActivity: number;
+    /** Fleet condition rollup for the board. */
+    condition: {
+      active: number;
+      backup: number;
+      repair: number;
+      /** Machines on the floor that ran no sessions at all this month. */
+      idle: number;
+      /** Total fault flags raised across the board's units. */
+      repairFlags: number;
+      /** Mean sessions per machine on the floor, one decimal. */
+      avgSessionsPerMachine: number;
+      /** Busiest unit by session count, null when the board was unused. */
+      busiestUnit: { label: string; sessions: number } | null;
+    };
   };
 };
 
@@ -1808,11 +1847,82 @@ export async function monthReport(opts?: {
     let totalPaused = 0;
     for (const d of days) totalPaused += d.totalPausedMinutes;
 
+    // Per-unit condition for the month. Built from the same completed-session
+    // rows as the totals above, so the two can never disagree.
+    type UnitAcc = {
+      sessions: number;
+      minutes: number;
+      pausedSeconds: number;
+      repairFlags: number;
+      dayKeys: Set<string>;
+      lastUsed: number | null;
+    };
+    const unitAcc = new Map<number, UnitAcc>();
+    for (const m of floorMachines) {
+      unitAcc.set(m.id, {
+        sessions: 0,
+        minutes: 0,
+        pausedSeconds: 0,
+        repairFlags: 0,
+        dayKeys: new Set(),
+        lastUsed: null,
+      });
+    }
+    for (const s of sOfFloor) {
+      const acc = unitAcc.get(s.machineId);
+      if (!acc) continue;
+      const endedAt = s.endedAt instanceof Date ? s.endedAt : new Date(String(s.endedAt));
+      acc.sessions++;
+      acc.minutes += s.durationMinutes ?? 0;
+      acc.pausedSeconds += Number(s.pausedSeconds ?? 0);
+      if ((s as { needsRepairAfterSession?: boolean }).needsRepairAfterSession) acc.repairFlags++;
+      acc.dayKeys.add(endedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }));
+      const t = endedAt.getTime();
+      if (acc.lastUsed === null || t > acc.lastUsed) acc.lastUsed = t;
+    }
+
+    const units: MonthlyUnitCondition[] = floorMachines
+      .map(m => {
+        const acc = unitAcc.get(m.id)!;
+        return {
+          machineId: m.id,
+          label: m.label,
+          status: m.status as MachineStatus,
+          statusNote: m.statusNote ?? null,
+          sessions: acc.sessions,
+          treatmentHours: Math.round((acc.minutes / 60) * 10) / 10,
+          pausedMinutes: Math.round(acc.pausedSeconds / 60),
+          daysUsed: acc.dayKeys.size,
+          repairFlags: acc.repairFlags,
+          lastUsed:
+            acc.lastUsed === null
+              ? null
+              : new Date(acc.lastUsed).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }),
+        };
+      })
+      // Busiest first, then by label so the order is stable between runs.
+      .sort((a, b) => b.sessions - a.sessions || a.label.localeCompare(b.label));
+
+    const busiest = units.find(u => u.sessions > 0) ?? null;
+    const condition = {
+      active: floorMachines.filter(m => m.status === "active").length,
+      backup: floorMachines.filter(m => m.status === "backup").length,
+      repair: floorMachines.filter(m => m.status === "repair").length,
+      idle: units.filter(u => u.sessions === 0).length,
+      repairFlags: units.reduce((a, u) => a + u.repairFlags, 0),
+      avgSessionsPerMachine:
+        floorMachines.length === 0
+          ? 0
+          : Math.round((units.reduce((a, u) => a + u.sessions, 0) / floorMachines.length) * 10) / 10,
+      busiestUnit: busiest ? { label: busiest.label, sessions: busiest.sessions } : null,
+    };
+
     out.push({
       floorId: floor.id,
       floorName: floor.name,
       month,
       days,
+      units,
       totals: {
         sessionsEnded: days.reduce((a, d) => a + d.sessionsEnded, 0),
         peakMachinesUtilized: Math.max(...days.map(d => d.machinesUtilized), 0),
@@ -1831,6 +1941,7 @@ export async function monthReport(opts?: {
         waitingAdds: { ...waitingPriority, total: waiting.length },
         totalPausedMinutes: totalPaused,
         daysWithActivity: days.filter(d => d.sessionsEnded > 0).length,
+        condition,
       },
     });
   }

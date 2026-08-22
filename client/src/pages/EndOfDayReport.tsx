@@ -16,6 +16,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import type { MonthlyBoardReport, MonthlyUnitCondition } from "../../../server/machines";
 
 const REPORT_PERIODS: { key: string; label: string }[] = [
   { key: "session1", label: "Session 1 · 5:00 – 10:00 AM" },
@@ -1761,35 +1762,7 @@ function PrintableMonthReport({
   data,
   month,
 }: {
-  data: {
-    floorId: number;
-    floorName: string | null;
-    month: string;
-    days: {
-      date: string;
-      sessionsEnded: number;
-      patientsCatered: number;
-      machinesUtilized: number;
-      totalMachinesOnFloor: number;
-      urgency: { normal: number; urgent: number; veryUrgent: number };
-      isolation: { clean: number; dirty: number };
-      totalTreatmentHours: number;
-      waitingAdds: number;
-      totalPausedMinutes: number;
-    }[];
-    totals: {
-      sessionsEnded: number;
-      peakMachinesUtilized: number;
-      totalMachinesOnFloor: number;
-      patientsCatered: number;
-      urgency: { normal: number; urgent: number; veryUrgent: number };
-      isolation: { clean: number; dirty: number };
-      totalTreatmentHours: number;
-      waitingAdds: { normal: number; urgent: number; veryUrgent: number; total: number };
-      totalPausedMinutes: number;
-      daysWithActivity: number;
-    };
-  }[];
+  data: MonthlyBoardReport[];
   month: string;
 }) {
   const monthLabel = new Date(`${month}-15T12:00:00+08:00`).toLocaleDateString([], {
@@ -1805,16 +1778,137 @@ function PrintableMonthReport({
     return m > 0 ? `${h} h ${m} min` : `${h} h`;
   };
 
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  // Whole-month figures across every board, so the report opens with the month
+  // as a single picture rather than a per-board hunt.
+  const all = data.reduce(
+    (a, b) => ({
+      sessionsEnded: a.sessionsEnded + b.totals.sessionsEnded,
+      patientsCatered: a.patientsCatered + b.totals.patientsCatered,
+      treatmentHours: a.treatmentHours + b.totals.totalTreatmentHours,
+      machines: a.machines + b.totals.totalMachinesOnFloor,
+      pausedMinutes: a.pausedMinutes + b.totals.totalPausedMinutes,
+      waitingAdds: a.waitingAdds + b.totals.waitingAdds.total,
+      urgent: a.urgent + b.totals.urgency.urgent,
+      veryUrgent: a.veryUrgent + b.totals.urgency.veryUrgent,
+      dirty: a.dirty + b.totals.isolation.dirty,
+      active: a.active + b.totals.condition.active,
+      backup: a.backup + b.totals.condition.backup,
+      repair: a.repair + b.totals.condition.repair,
+      idle: a.idle + b.totals.condition.idle,
+      repairFlags: a.repairFlags + b.totals.condition.repairFlags,
+    }),
+    {
+      sessionsEnded: 0,
+      patientsCatered: 0,
+      treatmentHours: 0,
+      machines: 0,
+      pausedMinutes: 0,
+      waitingAdds: 0,
+      urgent: 0,
+      veryUrgent: 0,
+      dirty: 0,
+      active: 0,
+      backup: 0,
+      repair: 0,
+      idle: 0,
+      repairFlags: 0,
+    }
+  );
+  const daysInMonth = data[0]?.days.length ?? 0;
+
+  const statusLabel = (s: MonthlyUnitCondition["status"]) =>
+    s === "active" ? "In service" : s === "backup" ? "Backup" : "Repair";
+
   return (
     <div className="screen:hidden print:block">
-      <div className="mb-8 border-b-2 border-[#9E1F2B] pb-4">
+      <div className="mb-6 border-b-2 border-[#9E1F2B] pb-4">
         <p className="text-xs uppercase tracking-[0.2em] text-[#7684A0]">Hemodialysis Occupancy Board</p>
         <h2 className="font-display text-2xl text-[#1F2A52]">End of Month Report</h2>
         <p className="mt-1 text-sm text-[#556680]">{monthLabel} · All boards · Asia/Manila time</p>
       </div>
 
+      <h3 className="mb-2 font-display text-lg text-[#1F2A52]">Month at a glance</h3>
+      <table className="glass-table mb-2 w-full table-fixed text-sm">
+        <thead>
+          <tr className="border-b-2 border-[#1F2A52] text-left text-[#1F2A52]">
+            <th className="w-[34%] px-2 py-1.5 font-semibold">Metric</th>
+            <th className="w-[16%] px-2 py-1.5 text-right font-semibold">Total</th>
+            <th className="w-[34%] px-2 py-1.5 font-semibold">Metric</th>
+            <th className="w-[16%] px-2 py-1.5 text-right font-semibold">Total</th>
+          </tr>
+        </thead>
+        <tbody className="text-[#374151]">
+          <tr className="border-b border-[#D4DFE5]">
+            <td className="px-2 py-1">Sessions completed</td>
+            <td className="px-2 py-1 text-right font-medium">{all.sessionsEnded}</td>
+            <td className="px-2 py-1">Treatment hours</td>
+            <td className="px-2 py-1 text-right font-medium">{round1(all.treatmentHours)} h</td>
+          </tr>
+          <tr className="border-b border-[#D4DFE5]">
+            <td className="px-2 py-1">Patients catered</td>
+            <td className="px-2 py-1 text-right font-medium">{all.patientsCatered}</td>
+            <td className="px-2 py-1">Machine pause time</td>
+            <td className="px-2 py-1 text-right font-medium">{fmtMin(all.pausedMinutes)}</td>
+          </tr>
+          <tr className="border-b border-[#D4DFE5]">
+            <td className="px-2 py-1">Urgent / Very urgent cases</td>
+            <td className="px-2 py-1 text-right font-medium">
+              {all.urgent} / {all.veryUrgent}
+            </td>
+            <td className="px-2 py-1">Waiting-list additions</td>
+            <td className="px-2 py-1 text-right font-medium">{all.waitingAdds}</td>
+          </tr>
+          <tr className="border-b border-[#D4DFE5]">
+            <td className="px-2 py-1">Dirty-isolation sessions</td>
+            <td className="px-2 py-1 text-right font-medium">{all.dirty}</td>
+            <td className="px-2 py-1">Days in month</td>
+            <td className="px-2 py-1 text-right font-medium">{daysInMonth}</td>
+          </tr>
+          <tr>
+            <td className="px-2 py-1">Average sessions per day</td>
+            <td className="px-2 py-1 text-right font-medium">
+              {daysInMonth ? round1(all.sessionsEnded / daysInMonth) : 0}
+            </td>
+            <td className="px-2 py-1">Average treatment hours per day</td>
+            <td className="px-2 py-1 text-right font-medium">
+              {daysInMonth ? round1(all.treatmentHours / daysInMonth) : 0} h
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 className="mb-2 mt-6 font-display text-lg text-[#1F2A52]">Unit condition — all boards</h3>
+      <table className="glass-table mb-2 w-full table-fixed text-sm">
+        <thead>
+          <tr className="border-b-2 border-[#1F2A52] text-left text-[#1F2A52]">
+            <th className="px-2 py-1.5 font-semibold">Units total</th>
+            <th className="px-2 py-1.5 text-right font-semibold">In service</th>
+            <th className="px-2 py-1.5 text-right font-semibold">Backup</th>
+            <th className="px-2 py-1.5 text-right font-semibold">Repair</th>
+            <th className="px-2 py-1.5 text-right font-semibold">Unused this month</th>
+            <th className="px-2 py-1.5 text-right font-semibold">Fault flags</th>
+          </tr>
+        </thead>
+        <tbody className="text-[#374151]">
+          <tr>
+            <td className="px-2 py-1 font-medium">{all.machines}</td>
+            <td className="px-2 py-1 text-right">{all.active}</td>
+            <td className="px-2 py-1 text-right">{all.backup}</td>
+            <td className="px-2 py-1 text-right font-medium text-[#9E1F2B]">{all.repair}</td>
+            <td className="px-2 py-1 text-right">{all.idle}</td>
+            <td className="px-2 py-1 text-right font-medium text-[#9E1F2B]">{all.repairFlags}</td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="mb-2 text-[10px] text-[#7684A0]">
+        In service / Backup / Repair reflect each unit&rsquo;s status at the time this report was run.
+        Fault flags count sessions ended with &ldquo;needs repair&rdquo; set during {monthLabel}.
+      </p>
+
       {data.map((board, idx) => (
-        <div key={board.floorId} className={`mb-8 ${idx > 0 ? "break-before-page" : ""}`}>
+        <div key={board.floorId} className={idx === 0 ? "mt-8" : "mt-8 break-before-page"}>
           <h3 className="mb-3 font-display text-xl text-[#1F2A52]">
             {board.floorName ?? `Floor ${board.floorId}`}
           </h3>
@@ -1823,7 +1917,7 @@ function PrintableMonthReport({
             <thead>
               <tr className="border-b-2 border-[#1F2A52] text-left text-[#1F2A52]">
                 <th className="px-2 py-1.5 font-semibold">Metric</th>
-                <th className="px-2 py-1.5 font-semibold">Total</th>
+                <th className="px-2 py-1.5 font-semibold">Total for {monthLabel}</th>
               </tr>
             </thead>
             <tbody className="text-[#374151]">
@@ -1871,60 +1965,85 @@ function PrintableMonthReport({
                 <td className="px-2 py-1">Total machine pause time</td>
                 <td className="px-2 py-1 font-medium">{fmtMin(board.totals.totalPausedMinutes)}</td>
               </tr>
-              <tr>
+              <tr className="border-b border-[#D4DFE5]">
                 <td className="px-2 py-1">Days with activity</td>
                 <td className="px-2 py-1 font-medium">
                   {board.totals.daysWithActivity} of {board.days.length}
                 </td>
               </tr>
+              <tr className="border-b border-[#D4DFE5]">
+                <td className="px-2 py-1">Units in service / backup / repair</td>
+                <td className="px-2 py-1 font-medium">
+                  {board.totals.condition.active} / {board.totals.condition.backup} /{" "}
+                  {board.totals.condition.repair}
+                </td>
+              </tr>
+              <tr className="border-b border-[#D4DFE5]">
+                <td className="px-2 py-1">Units unused this month</td>
+                <td className="px-2 py-1 font-medium">{board.totals.condition.idle}</td>
+              </tr>
+              <tr className="border-b border-[#D4DFE5]">
+                <td className="px-2 py-1">Fault flags raised</td>
+                <td className="px-2 py-1 font-medium">{board.totals.condition.repairFlags}</td>
+              </tr>
+              <tr className="border-b border-[#D4DFE5]">
+                <td className="px-2 py-1">Average sessions per unit</td>
+                <td className="px-2 py-1 font-medium">{board.totals.condition.avgSessionsPerMachine}</td>
+              </tr>
+              <tr>
+                <td className="px-2 py-1">Busiest unit</td>
+                <td className="px-2 py-1 font-medium">
+                  {board.totals.condition.busiestUnit
+                    ? `${board.totals.condition.busiestUnit.label} (${board.totals.condition.busiestUnit.sessions} sessions)`
+                    : "—"}
+                </td>
+              </tr>
             </tbody>
           </table>
 
-          <h4 className="mb-2 mt-6 font-semibold text-[#1F2A52]">Daily breakdown</h4>
-          <table className="glass-table w-full text-sm">
-            <thead>
-              <tr className="border-b-2 border-[#1F2A52] text-left text-[#1F2A52]">
-                <th className="px-2 py-1.5 font-semibold">Date</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Sessions</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Patients</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Machines used</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Hours</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Urgent</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Very urgent</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Waiting added</th>
-                <th className="px-2 py-1.5 text-right font-semibold">Pause</th>
-              </tr>
-            </thead>
-            <tbody className="text-[#374151]">
-              {board.days.map(day => (
-                <tr key={day.date} className="border-b border-[#D4DFE5]">
-                  <td className="px-2 py-1">
-                    {new Date(`${day.date}T12:00:00+08:00`).toLocaleDateString([], {
-                      weekday: "short",
-                      day: "numeric",
-                      timeZone: "Asia/Manila",
-                    })}
-                  </td>
-                  <td className="px-2 py-1 text-right">{day.sessionsEnded}</td>
-                  <td className="px-2 py-1 text-right">{day.patientsCatered}</td>
-                  <td className="px-2 py-1 text-right">
-                    {day.machinesUtilized}/{day.totalMachinesOnFloor}
-                  </td>
-                  <td className="px-2 py-1 text-right">{day.totalTreatmentHours}</td>
-                  <td className="px-2 py-1 text-right">{day.urgency.urgent}</td>
-                  <td className="px-2 py-1 text-right">{day.urgency.veryUrgent}</td>
-                  <td className="px-2 py-1 text-right">{day.waitingAdds}</td>
-                  <td className="px-2 py-1 text-right">{fmtMin(day.totalPausedMinutes)}</td>
+          <h4 className="mb-2 mt-6 font-semibold text-[#1F2A52]">Unit condition</h4>
+          {board.units.length === 0 ? (
+            <p className="text-sm text-[#7684A0]">No units assigned to this board.</p>
+          ) : (
+            <table className="glass-table w-full table-fixed text-sm print:text-[11px]">
+              <thead>
+                <tr className="border-b-2 border-[#1F2A52] text-left text-[#1F2A52]">
+                  <th className="w-[16%] px-2 py-1.5 font-semibold">Unit</th>
+                  <th className="w-[14%] px-2 py-1.5 font-semibold">Status</th>
+                  <th className="w-[11%] px-2 py-1.5 text-right font-semibold">Sessions</th>
+                  <th className="w-[11%] px-2 py-1.5 text-right font-semibold">Days used</th>
+                  <th className="w-[12%] px-2 py-1.5 text-right font-semibold">Tx hours</th>
+                  <th className="w-[12%] px-2 py-1.5 text-right font-semibold">Pause</th>
+                  <th className="w-[10%] px-2 py-1.5 text-right font-semibold">Faults</th>
+                  <th className="w-[14%] px-2 py-1.5 text-right font-semibold">Last used</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="text-[#374151]">
+                {board.units.map(u => (
+                  <tr key={u.machineId} className="border-b border-[#D4DFE5]">
+                    <td className="px-2 py-1 font-medium">{u.label}</td>
+                    <td className={`px-2 py-1 ${u.status === "repair" ? "font-medium text-[#9E1F2B]" : ""}`}>
+                      {statusLabel(u.status)}
+                    </td>
+                    <td className="px-2 py-1 text-right">{u.sessions}</td>
+                    <td className="px-2 py-1 text-right">{u.daysUsed}</td>
+                    <td className="px-2 py-1 text-right">{u.treatmentHours}</td>
+                    <td className="px-2 py-1 text-right">{u.pausedMinutes ? fmtMin(u.pausedMinutes) : "—"}</td>
+                    <td className={`px-2 py-1 text-right ${u.repairFlags > 0 ? "font-medium text-[#9E1F2B]" : ""}`}>
+                      {u.repairFlags || "—"}
+                    </td>
+                    <td className="px-2 py-1 text-right">{u.lastUsed ?? "Not used"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       ))}
 
       <p className="mt-6 text-xs text-[#7684A0]">
-        Generated {new Date().toLocaleString([], { timeZone: "Asia/Manila" })} ·
-        Hemodialysis Occupancy Board
+        Generated {new Date().toLocaleString([], { timeZone: "Asia/Manila" })} · Hemodialysis Occupancy
+        Board
       </p>
     </div>
   );

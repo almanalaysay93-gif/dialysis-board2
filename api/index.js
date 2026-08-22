@@ -1980,11 +1980,60 @@ async function monthReport(opts) {
     }
     let totalPaused = 0;
     for (const d of days) totalPaused += d.totalPausedMinutes;
+    const unitAcc = /* @__PURE__ */ new Map();
+    for (const m of floorMachines) {
+      unitAcc.set(m.id, {
+        sessions: 0,
+        minutes: 0,
+        pausedSeconds: 0,
+        repairFlags: 0,
+        dayKeys: /* @__PURE__ */ new Set(),
+        lastUsed: null
+      });
+    }
+    for (const s of sOfFloor) {
+      const acc = unitAcc.get(s.machineId);
+      if (!acc) continue;
+      const endedAt = s.endedAt instanceof Date ? s.endedAt : new Date(String(s.endedAt));
+      acc.sessions++;
+      acc.minutes += s.durationMinutes ?? 0;
+      acc.pausedSeconds += Number(s.pausedSeconds ?? 0);
+      if (s.needsRepairAfterSession) acc.repairFlags++;
+      acc.dayKeys.add(endedAt.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" }));
+      const t2 = endedAt.getTime();
+      if (acc.lastUsed === null || t2 > acc.lastUsed) acc.lastUsed = t2;
+    }
+    const units = floorMachines.map((m) => {
+      const acc = unitAcc.get(m.id);
+      return {
+        machineId: m.id,
+        label: m.label,
+        status: m.status,
+        statusNote: m.statusNote ?? null,
+        sessions: acc.sessions,
+        treatmentHours: Math.round(acc.minutes / 60 * 10) / 10,
+        pausedMinutes: Math.round(acc.pausedSeconds / 60),
+        daysUsed: acc.dayKeys.size,
+        repairFlags: acc.repairFlags,
+        lastUsed: acc.lastUsed === null ? null : new Date(acc.lastUsed).toLocaleDateString("en-CA", { timeZone: "Asia/Manila" })
+      };
+    }).sort((a, b) => b.sessions - a.sessions || a.label.localeCompare(b.label));
+    const busiest = units.find((u) => u.sessions > 0) ?? null;
+    const condition = {
+      active: floorMachines.filter((m) => m.status === "active").length,
+      backup: floorMachines.filter((m) => m.status === "backup").length,
+      repair: floorMachines.filter((m) => m.status === "repair").length,
+      idle: units.filter((u) => u.sessions === 0).length,
+      repairFlags: units.reduce((a, u) => a + u.repairFlags, 0),
+      avgSessionsPerMachine: floorMachines.length === 0 ? 0 : Math.round(units.reduce((a, u) => a + u.sessions, 0) / floorMachines.length * 10) / 10,
+      busiestUnit: busiest ? { label: busiest.label, sessions: busiest.sessions } : null
+    };
     out.push({
       floorId: floor.id,
       floorName: floor.name,
       month,
       days,
+      units,
       totals: {
         sessionsEnded: days.reduce((a, d) => a + d.sessionsEnded, 0),
         peakMachinesUtilized: Math.max(...days.map((d) => d.machinesUtilized), 0),
@@ -2002,7 +2051,8 @@ async function monthReport(opts) {
         totalTreatmentHours: Math.round(days.reduce((a, d) => a + d.totalTreatmentHours, 0) * 10) / 10,
         waitingAdds: { ...waitingPriority, total: waiting.length },
         totalPausedMinutes: totalPaused,
-        daysWithActivity: days.filter((d) => d.sessionsEnded > 0).length
+        daysWithActivity: days.filter((d) => d.sessionsEnded > 0).length,
+        condition
       }
     });
   }
