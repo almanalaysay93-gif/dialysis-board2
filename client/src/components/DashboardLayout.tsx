@@ -82,7 +82,7 @@ export default function DashboardLayout({
         <div className="flex flex-col items-center gap-8 p-8 max-w-md w-full">
           <div className="flex flex-col items-center gap-6">
             <img
-              src="/manus-storage/skti-seal-transparent_b9fdeed9.png"
+              src="/skti-seal.jpg"
               alt="SPMC Kidney and Transplant Institute"
               className="h-28 w-28 rounded-full object-cover shadow-md"
             />
@@ -198,7 +198,7 @@ function DashboardLayoutContent({
               {!isCollapsed ? (
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img
-                    src="/manus-storage/skti-seal-transparent_b9fdeed9.png"
+                    src="/skti-seal.jpg"
                     alt="SPMCKTI logo"
                     className="h-9 w-9 rounded-full object-cover shrink-0"
                   />
@@ -213,7 +213,7 @@ function DashboardLayoutContent({
                 </div>
               ) : (
                 <img
-                  src="/manus-storage/skti-seal-transparent_b9fdeed9.png"
+                  src="/skti-seal.jpg"
                   alt="SPMCKTI logo"
                   className="h-8 w-8 rounded-full object-cover"
                 />

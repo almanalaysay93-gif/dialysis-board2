@@ -74,14 +74,14 @@ export default function StaffLogin() {
       <div className="w-full max-w-md space-y-6">
         <div className="glass-deep relative overflow-hidden border border-[#1F2A52]/25 px-8 py-7 text-center">
           <img
-            src="/manus-storage/skti-building_5c90942a.jpg"
+            src="/skti-building.jpg"
             alt="SPMC Kidney & Transplant Institute building"
             className="absolute inset-0 h-full w-full object-cover opacity-[0.4] saturate-[1.05]"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-[#F7F9FB]/30 via-transparent to-[#F7F9FB]/30" />
           <div className="relative flex flex-col items-center gap-2.5">
             <img
-              src="/manus-storage/skti-seal-transparent_b9fdeed9.png"
+              src="/skti-seal.jpg"
               alt="SKTI seal"
               className="h-28 w-28 rounded-full object-cover drop-shadow-[0_3px_12px_rgba(22,39,70,0.4)]"
             />

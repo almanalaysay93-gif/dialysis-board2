@@ -67,10 +67,10 @@ falling back to `index.html` for the SPA router.
     connection. Serverless opens many short-lived connections; the pool is
     capped at 2 per instance on Vercel, but the direct connection will still
     exhaust the database under load.
-*   **Images are broken off-Manus.** `/manus-storage/*` proxies to the Manus
-    Forge API and needs `BUILT_IN_FORGE_API_URL` and `BUILT_IN_FORGE_API_KEY`.
-    Without them the logo returns 500. Move the assets into `client/public/`
-    to drop the dependency.
+*   **Images need no configuration.** The SKTI seal and building photo are
+    served straight from `client/public/`, so `BUILT_IN_FORGE_API_URL` and
+    `BUILT_IN_FORGE_API_KEY` are not required. The `/manus-storage/*` proxy is
+    still mounted for future uploads but nothing in the client calls it.
 *   **OAuth is optional.** Without `OAUTH_SERVER_URL` the server logs a startup
     warning and the `/api/oauth/callback` route is inert. Staff username and
     password login is unaffected.
