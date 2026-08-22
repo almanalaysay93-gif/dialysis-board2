@@ -1,0 +1,352 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+@custom-variant xs (@media (min-width: 475px));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-display: "Playfair Display", Georgia, serif;
+}
+
+:root {
+  --radius: 0.25rem;
+  /* SPMCKTI palette: deep navy ink, crimson kidney red, teal, and greens */
+  --background: oklch(0.972 0.006 230);           /* pale cool ivory */
+  --foreground: oklch(0.275 0.062 262);           /* deep navy #1F2A52 */
+  --card: oklch(0.99 0.003 220);                  /* near-white */
+  --card-foreground: oklch(0.275 0.062 262);
+  --popover: oklch(0.99 0.003 220);
+  --popover-foreground: oklch(0.275 0.062 262);
+  --primary: oklch(0.275 0.062 262);              /* navy */
+  --primary-foreground: oklch(0.972 0.006 230);
+  --secondary: oklch(0.938 0.022 195);            /* pale teal */
+  --secondary-foreground: oklch(0.32 0.055 262);
+  --muted: oklch(0.925 0.014 230);
+  --muted-foreground: oklch(0.47 0.035 255);      /* slate */
+  --accent: oklch(0.63 0.085 195);                /* SKTI teal */
+  --accent-foreground: oklch(0.985 0.005 220);
+  --destructive: oklch(0.47 0.175 24);             /* kidney crimson */
+  --destructive-foreground: oklch(0.985 0.005 220);
+  --border: oklch(0.868 0.022 235);               /* fine line */
+  --input: oklch(0.868 0.022 235);
+  --ring: oklch(0.55 0.09 195);                   /* teal ring */
+  --chart-1: oklch(0.47 0.175 24);                /* crimson */
+  --chart-2: oklch(0.63 0.085 195);               /* teal */
+  --chart-3: oklch(0.45 0.09 160);                /* green */
+  --chart-4: oklch(0.32 0.055 262);               /* navy */
+  --chart-5: oklch(0.68 0.11 60);                 /* warm gold */
+  --sidebar: oklch(0.955 0.012 230);              /* pale cool grey */
+  --sidebar-foreground: oklch(0.275 0.062 262);
+  --sidebar-primary: oklch(0.275 0.062 262);
+  --sidebar-primary-foreground: oklch(0.972 0.006 230);
+  --sidebar-accent: oklch(0.89 0.045 195);
+  --sidebar-accent-foreground: oklch(0.22 0.05 262);
+  --sidebar-border: oklch(0.868 0.022 235);
+  --sidebar-ring: oklch(0.55 0.09 195);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "ss01";
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"]:not(:disabled),
+  [type="submit"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  a[href],
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled) {
+    @apply cursor-pointer;
+  }
+}
+
+/* Editorial typography utilities */
+.font-display {
+  font-family: "Playfair Display", Georgia, serif;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}
+
+.font-serif-light {
+  font-family: "Cormorant Garamond", Georgia, serif;
+  font-weight: 500;
+}
+
+.smallcaps-detail {
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  font-size: 0.625rem;
+  font-weight: 500;
+}
+
+/* Glassmorphism — frosted glass surfaces for panels, cards, and tables.
+   Translucent navy-tinted glass with backdrop blur; machine tile status
+   colors remain solid and fully readable on top of the glass. */
+.glass-panel {
+  background: oklch(0.98 0.012 225 / 0.65);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  border: 1px solid oklch(0.99 0.003 220 / 0.8);
+  border-top-color: oklch(0.99 0.003 220 / 0.95);
+  box-shadow:
+    0 4px 24px -6px oklch(0.275 0.062 262 / 0.16),
+    0 0 0 1px oklch(0.275 0.062 262 / 0.05),
+    inset 0 1px 0 oklch(0.99 0.003 220 / 0.9);
+  border-radius: 0.625rem;
+}
+.glass-deep {
+  background: oklch(0.965 0.014 225 / 0.82);
+  backdrop-filter: blur(20px) saturate(1.45);
+  -webkit-backdrop-filter: blur(20px) saturate(1.45);
+  border: 1px solid oklch(0.99 0.003 220 / 0.75);
+  border-top-color: oklch(0.99 0.003 220 / 0.95);
+  box-shadow:
+    0 8px 32px -8px oklch(0.275 0.062 262 / 0.22),
+    0 0 0 1px oklch(0.275 0.062 262 / 0.07),
+    inset 0 1px 0 oklch(0.99 0.003 220 / 0.95);
+  border-radius: 0.625rem;
+}
+/* Glass table: frosted surface with translucent header strip. */
+.glass-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  background: oklch(0.985 0.01 225 / 0.62);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid oklch(0.99 0.003 220 / 0.78);
+  border-top-color: oklch(0.99 0.003 220 / 0.92);
+  box-shadow:
+    0 4px 20px -6px oklch(0.275 0.062 262 / 0.14),
+    inset 0 1px 0 oklch(0.99 0.003 220 / 0.88);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.glass-table thead th {
+  background: oklch(0.275 0.062 262 / 0.13);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-bottom: 1px solid oklch(0.63 0.085 195 / 0.35);
+}
+.glass-table tbody tr:hover td {
+  background: oklch(0.63 0.085 195 / 0.08);
+}
+/* Glass icons: icons sitting on a frosted disc. */
+.glass-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: oklch(0.99 0.003 220 / 0.6);
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  border: 1px solid oklch(0.99 0.003 220 / 0.7);
+  box-shadow:
+    0 2px 10px -3px oklch(0.275 0.062 262 / 0.15),
+    inset 0 1px 0 oklch(0.99 0.003 220 / 0.8);
+  border-radius: 9999px;
+}
+/* Glass photo: a photograph in a frosted frame. */
+.glass-photo {
+  border: 1px solid oklch(0.99 0.003 220 / 0.75);
+  box-shadow:
+    0 4px 16px -4px oklch(0.275 0.062 262 / 0.2),
+    inset 0 0 0 4px oklch(0.99 0.003 220 / 0.55),
+    inset 0 1px 0 oklch(0.99 0.003 220 / 0.8);
+}
+
+/* Machine tile states */
+.tile-vacant {
+  background: oklch(0.972 0.006 230);
+  border: 1px solid oklch(0.868 0.022 235);
+  transition:
+    background-color 180ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+.tile-vacant:hover {
+  background: oklch(0.94 0.018 230);
+  border-color: oklch(0.63 0.085 195);
+}
+
+.tile-occupied {
+  background: oklch(0.45 0.09 160);               /* SKTI green */
+  border: 1px solid oklch(0.38 0.085 160);
+  color: oklch(0.97 0.02 160);
+}
+
+.tile-urgent {
+  background: oklch(0.47 0.175 24);               /* kidney crimson */
+  border: 1px solid oklch(0.4 0.165 24);
+  color: oklch(0.97 0.03 40);
+}
+
+.tile-urgent-pulse {
+  box-shadow: 0 0 0 0 oklch(0.55 0.19 24 / 0.45);
+  animation: urgent-pulse 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes urgent-pulse {
+    0% {
+      box-shadow: 0 0 0 0 oklch(0.55 0.19 24 / 0.45);
+    }
+    70% {
+      box-shadow: 0 0 0 12px oklch(0.55 0.19 24 / 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 oklch(0.55 0.18 27 / 0);
+    }
+  }
+}
+
+/* Fade-in entrance for the grid */
+@keyframes tile-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tile-enter {
+  animation: tile-in 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tile-enter,
+  .tile-urgent-pulse {
+    animation: none;
+  }
+}
+
+@layer components {
+  .container {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .flex {
+    min-height: 0;
+    min-width: 0;
+  }
+
+  @media (min-width: 640px) {
+    .container {
+      padding-left: 1.5rem;
+      padding-right: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .container {
+      padding-left: 2rem;
+      padding-right: 2rem;
+      max-width: 1280px;
+    }
+  }
+}
+
+/* Waiting list — very urgent patient pulsing marker */
+@keyframes waitpulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 oklch(0.42 0.19 20 / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.42 0.19 20 / 0);
+  }
+}
+/* Urgent Cases page — very-urgent waiting card */
+.urgent-waiting {
+  animation: waitpulse 1.6s ease-in-out infinite;
+}
+
+/* End of Month PDF export — print layout.
+   When "Export Month PDF" triggers the browser print dialog, hide the app
+   chrome (sidebar, topbar, controls, the daily report) and render only the
+   printable month report so the exported PDF is a clean paginated document. */
+@media print {
+  @page {
+    margin: 12mm 10mm;
+    size: A4 portrait;
+  }
+  html, body {
+    height: auto !important;
+    overflow: visible !important;
+    background: white !important;
+    color: black !important;
+  }
+  .screen\:hidden {
+    display: none !important;
+  }
+  [data-slot="sidebar"],
+  [data-slot="sidebar-header"],
+  [data-slot="sidebar-content"],
+  header,
+  nav,
+  button {
+    display: none !important;
+  }
+  .print\:block {
+    display: block !important;
+  }
+  .print\:screen-only {
+    display: none !important;
+  }
+  .break-before-page {
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+  table, tr, td, th, .glass-panel, .glass-table {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}
