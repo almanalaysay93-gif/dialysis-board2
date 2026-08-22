@@ -2,12 +2,24 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "vite build",
+  "buildCommand": "pnpm run build:vercel",
   "outputDirectory": "dist/public",
   "rewrites": [
-    { "source": "/api/trpc/:path*", "destination": "/api" },
-    { "source": "/api/oauth/:path*", "destination": "/api" },
-    { "source": "/manus-storage/:path*", "destination": "/api" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/api/trpc/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/api/oauth/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/manus-storage/:path*",
+      "destination": "/api"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
   ]
 }

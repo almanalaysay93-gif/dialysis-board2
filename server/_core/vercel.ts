@@ -1,34 +1,29 @@
 import type { IncomingMessage, ServerResponse } from "http";
 import type { Express } from "express";
+import { createApiApp } from "./app";
 
-// Vercel serverless entry. Static assets are served by Vercel's CDN from
-// dist/public (see vercel.json), so no serveStatic here — and no listen(),
-// no port scan, no warmDb(): the platform owns the process lifecycle.
+/**
+ * Source for the Vercel serverless function. esbuild bundles this into
+ * api/index.js at build time (see the build:vercel script).
+ *
+ * It must be bundled rather than shipped as TypeScript: package.json declares
+ * "type": "module", so Vercel transpiles each api/*.ts file in place instead of
+ * bundling it, and Node's ESM loader then cannot resolve the extensionless
+ * relative imports this codebase uses throughout — the whole server/ tree ends
+ * up missing from the function with ERR_MODULE_NOT_FOUND.
+ *
+ * No listen(), no port scan and no warmDb(): the platform owns the process
+ * lifecycle. Static assets come from the CDN (see vercel.json).
+ */
 
 type ParsedRequest = IncomingMessage & { body?: unknown; _body?: boolean };
 
-// The app is built lazily inside the handler rather than at module scope. If
-// anything throws while loading the router graph (a bad import, a missing
-// dependency, a module-scope crash) the platform would otherwise kill the
-// invocation and serve its own plain-text "A server error has occurred" page,
-// which tells the client nothing and is not even valid JSON. Catching it here
-// turns that into a readable response.
-let appPromise: Promise<Express> | null = null;
+let app: Express | null = null;
 
-function loadApp(): Promise<Express> {
-  if (!appPromise) {
-    appPromise = import("../server/_core/app").then(m => m.createApiApp());
-  }
-  return appPromise;
-}
-
-export default async function handler(req: ParsedRequest, res: ServerResponse) {
-  let app: Express;
+export default function handler(req: ParsedRequest, res: ServerResponse) {
   try {
-    app = await loadApp();
+    if (!app) app = createApiApp();
   } catch (error) {
-    // Let the next invocation retry rather than caching the failure forever.
-    appPromise = null;
     const err = error as Error;
     console.error("[api] failed to initialise:", err);
     res.statusCode = 500;
