@@ -1,15 +1,22 @@
 # Deployment Guide - Hemodialysis Occupancy Board
 
-This guide provides instructions for deploying this full-stack application (React/Vite client, Node/Express server, and Supabase PostgreSQL database) to production using **Render** or **Railway**.
+This guide provides instructions for deploying this full-stack application (React/Vite client, Node/Express server, and Supabase PostgreSQL database) to production using **Vercel**, **Render**, or **Railway**.
+
+> **Do not set `NODE_ENV=production` as a build-time environment variable.** The
+> build needs the devDependencies (vite, esbuild, tailwind). Setting `NODE_ENV`
+> in the hosting dashboard makes the package manager prune them during install,
+> and the build fails with `vite: not found`. `render.yaml` and the Dockerfile
+> set it on the **start** command instead, which is the correct place. Vercel
+> sets it for you and needs no `NODE_ENV` variable at all.
 
 ---
 
 ## Prerequisites
 
 Before starting, make sure you have:
-1. A **GitHub** account where your repository [dialysis-occupancy-board](https://github.com/almanalaysay93-gif/dialysis-occupancy-board) is hosted.
+1. A **GitHub** account hosting this repository.
 2. A **Supabase** account with an active PostgreSQL database.
-3. A **Render** or **Railway** account for application hosting.
+3. A **Vercel**, **Render**, or **Railway** account for application hosting.
 
 ---
 
@@ -33,7 +40,46 @@ If you are using your existing Supabase database, the tables and schema are alre
 
 ---
 
-## 2. Option A: Deploying to Render (Recommended)
+## 2. Option A: Deploying to Vercel
+
+Vercel serves the built client from its CDN and runs the Express API as a
+serverless function (`api/index.ts`). `vercel.json` already configures this —
+build command, output directory, and the rewrites that route `/api/trpc/*`,
+`/api/oauth/*` and `/manus-storage/*` into the function, with everything else
+falling back to `index.html` for the SPA router.
+
+1. Log in to [Vercel](https://vercel.com/) and click **Add New… > Project**.
+2. Import this GitHub repository. Leave the framework preset as **Other** —
+   `vercel.json` supplies the build settings, so do not override them.
+3. Open **Settings > Environment Variables** and add, for **all** environments:
+    *   **`JWT_SECRET`**: a long random string. **Required** — staff login throws
+        without it. Generate one with
+        `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
+    *   **`SUPABASE_DATABASE_URL_B64`**: your Supabase connection string, Base64
+        encoded (recommended), **or** **`DATABASE_URL`** in plain text.
+    *   Do **not** add `NODE_ENV` or `PORT`. Vercel manages both; `NODE_ENV`
+        will break the build (see the warning at the top of this guide).
+4. Click **Deploy**.
+
+### Vercel caveats
+
+*   **Use the Supabase transaction pooler URL** (port `6543`), not the direct
+    connection. Serverless opens many short-lived connections; the pool is
+    capped at 2 per instance on Vercel, but the direct connection will still
+    exhaust the database under load.
+*   **Images are broken off-Manus.** `/manus-storage/*` proxies to the Manus
+    Forge API and needs `BUILT_IN_FORGE_API_URL` and `BUILT_IN_FORGE_API_KEY`.
+    Without them the logo returns 500. Move the assets into `client/public/`
+    to drop the dependency.
+*   **OAuth is optional.** Without `OAUTH_SERVER_URL` the server logs a startup
+    warning and the `/api/oauth/callback` route is inert. Staff username and
+    password login is unaffected.
+*   Cold starts add roughly a second to the first request after idle. Render
+    keeps a warm process and avoids this.
+
+---
+
+## 3. Option B: Deploying to Render
 
 Render offers free web service hosting and supports automatic deployments directly linked to your GitHub repository.
 
@@ -58,9 +104,8 @@ If you prefer to configure the Web Service manually:
    *   **Name**: `dialysis-occupancy-board`
    *   **Runtime**: `Node`
    *   **Build Command**: `pnpm install && pnpm run build`
-   *   **Start Command**: `pnpm start`
+   *   **Start Command**: `NODE_ENV=production pnpm start`
 4. Scroll down, click **Advanced**, and add the following **Environment Variables**:
-   *   `NODE_ENV`: `production`
    *   `PORT`: `3000`
    *   `JWT_SECRET`: (Generate a long random string)
    *   `SUPABASE_DATABASE_URL_B64` (Base64 encoded string) or `DATABASE_URL` (plain text string)
@@ -68,7 +113,7 @@ If you prefer to configure the Web Service manually:
 
 ---
 
-## 3. Option B: Deploying to Railway
+## 4. Option C: Deploying to Railway
 
 Railway is a developer-friendly platform that will automatically detect the `Dockerfile` in the repository and build it as a container.
 
@@ -88,7 +133,7 @@ Railway is a developer-friendly platform that will automatically detect the `Doc
 
 | Variable Name | Required? | Description |
 | :--- | :--- | :--- |
-| `NODE_ENV` | Yes | Set to `production` in your hosting dashboard. |
+| `NODE_ENV` | No | Set on the **start** command, never as a build-time dashboard variable (it prunes the devDependencies the build needs). Vercel sets it automatically. |
 | `PORT` | No | The port the server binds to (default: `3000`). |
 | `JWT_SECRET` | Yes | A secret key used to sign and verify staff cookies. Keep this private. |
 | `SUPABASE_DATABASE_URL_B64` | Recommended | Base64-encoded Postgres connection URL. Bypasses proxy URL mangling. |
