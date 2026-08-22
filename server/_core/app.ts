@@ -37,6 +37,17 @@ export function createApiApp(): Express {
       lookalikeNames: Object.keys(process.env).filter(k =>
         /JWT|SECRET|SUPABASE|DATABASE|POSTGRES/i.test(k)
       ),
+      // Every name that is not a known platform built-in, JSON-quoted so any
+      // leading/trailing whitespace in the name is visible. Names only.
+      customNames: Object.keys(process.env)
+        .filter(
+          k =>
+            !/^(VERCEL|AWS|LAMBDA|_|NODE|PATH$|HOME$|LANG$|TZ$|PWD$|SHLVL$|TERM$|HOSTNAME$|EDITOR$|NOW_)/i.test(
+              k
+            )
+        )
+        .map(k => JSON.stringify(k))
+        .sort(),
       totalEnvVars: Object.keys(process.env).length,
     });
   });
