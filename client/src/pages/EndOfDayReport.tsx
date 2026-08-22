@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Link } from "wouter";
 import { ClipboardList, Dumbbell, FileDown, Filter, PenLine, Printer, Trash2, UserRound, Users } from "lucide-react";
 import { toast } from "sonner";
@@ -225,6 +226,17 @@ export default function EndOfDayReport() {
     return () => window.removeEventListener("afterprint", handleAfterPrint);
   }, []);
 
+  /**
+   * Switch print mode and print. flushSync is required: setState is async, so
+   * calling window.print() straight after it captured the previous DOM — the
+   * monthly button printed the daily report because the swap had not been
+   * committed yet. flushSync commits it before the print dialog opens.
+   */
+  function printWithMode(monthOnly: boolean) {
+    flushSync(() => setPrintMonthOnly(monthOnly));
+    window.print();
+  }
+
   return (
     <DashboardLayout>
       {isGuest ? (
@@ -271,10 +283,7 @@ export default function EndOfDayReport() {
               size="sm"
               variant="outline"
               className="h-9 border-[#D4DFE5] text-[#1F2A52] hover:bg-[#E8EFF1]"
-              onClick={() => {
-                setPrintMonthOnly(false);
-                window.print();
-              }}
+              onClick={() => printWithMode(false)}
               aria-label="Print Daily Report"
             >
               <FileDown className="mr-1.5 h-4 w-4 text-[#2E9A9B]" />
@@ -284,10 +293,7 @@ export default function EndOfDayReport() {
               <Button
                 size="sm"
                 className="h-9 bg-[#9E1F2B] text-white hover:bg-[#7a1822]"
-                onClick={() => {
-                  setPrintMonthOnly(true);
-                  window.print();
-                }}
+                onClick={() => printWithMode(true)}
                 aria-label="Print Monthly Report"
               >
                 <FileDown className="mr-1.5 h-4 w-4" />
