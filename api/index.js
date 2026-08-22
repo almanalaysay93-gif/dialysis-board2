@@ -1034,7 +1034,7 @@ var systemRouter = router({
 });
 
 // server/machines.ts
-import { and, desc, eq as eq3, isNull, sql } from "drizzle-orm";
+import { and, desc, eq as eq3, gte, isNull, sql } from "drizzle-orm";
 async function listMachines() {
   const db = await getDb();
   if (!db) return [];
@@ -2217,6 +2217,50 @@ function machineDayMetricsInline(input) {
   }
   return out;
 }
+var MACHINE_HISTORY_DAYS = 15;
+async function machineHistory(input) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const machineRows = await db.select().from(machines).where(eq3(machines.id, input.machineId)).limit(1);
+  const machine = machineRows[0];
+  if (!machine) return void 0;
+  const days = input.days ?? MACHINE_HISTORY_DAYS;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1e3);
+  const rows = await db.select({
+    sessionId: sessions.id,
+    patientId: sessions.patientId,
+    displayLabel: sessions.displayLabel,
+    assignedNurse: sessions.assignedNurse,
+    durationMinutes: sessions.durationMinutes,
+    startedAt: sessions.startedAt,
+    endsAt: sessions.endsAt,
+    endedAt: sessions.endedAt,
+    isolationTag: sessions.isolationTag,
+    urgent: sessions.urgent,
+    pausedSeconds: sessions.pausedSeconds,
+    status: sessions.status,
+    startedBy: sessions.startedBy,
+    endedBy: sessions.endedBy
+  }).from(sessions).where(and(eq3(sessions.machineId, input.machineId), gte(sessions.startedAt, since))).orderBy(desc(sessions.startedAt));
+  return {
+    machine: {
+      id: machine.id,
+      label: machine.label,
+      location: machine.location,
+      floorId: machine.floorId ?? null
+    },
+    days,
+    since,
+    // Raw driver rows can hand back timestamps as strings; coerce so the client
+    // always receives real Dates (same class of fix as monthReport).
+    rows: rows.map((r) => ({
+      ...r,
+      startedAt: new Date(r.startedAt),
+      endsAt: new Date(r.endsAt),
+      endedAt: r.endedAt ? new Date(r.endedAt) : null
+    }))
+  };
+}
 
 // server/errors.ts
 import { TRPCError as TRPCError3 } from "@trpc/server";
@@ -2303,6 +2347,22 @@ var appRouter = router({
     /** All machines with their active session (if any). Auto-polling on the
      *  client provides cross-device real-time sync. */
     list: publicProcedure.query(() => listMachines()),
+    /**
+     * Session history for one machine over the last 15 days, newest first.
+     * Staff only — this exposes patient identifiers, so guests are rejected by
+     * staffOrAdminProcedure and nurses are scoped to their own board. Purely a
+     * read: nothing older is deleted.
+     */
+    history: staffOrAdminProcedure.input(z2.object({ machineId: z2.number().int().positive() })).query(async ({ ctx, input }) => {
+      const history = await machineHistory({ machineId: input.machineId });
+      if (!history) {
+        throw new TRPCError4({ code: "NOT_FOUND", message: "Machine not found." });
+      }
+      if (history.machine.floorId !== null) {
+        requireFloorAccess(ctx.staff, history.machine.floorId, ctx.user);
+      }
+      return history;
+    }),
     /** Rename a machine (staff only). */
     updateLabel: staffOrAdminProcedure.input(
       z2.object({

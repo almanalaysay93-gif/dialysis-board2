@@ -13,13 +13,28 @@ import RenameMachineDialog from "@/components/RenameMachineDialog";
 import RenameSessionLabelDialog from "@/components/RenameSessionLabelDialog";
 import RemoveMachineDialog from "@/components/RemoveMachineDialog";
 import { cn } from "@/lib/utils";
-import { Activity, AlertTriangle, BellRing, Clock, Droplets, FilePenLine, Loader2, MoreVertical, Pause, Play, Pencil, Plus, Power, Trash2, Boxes, Wrench } from "lucide-react";
+import { csvDate, toCsv } from "@shared/csv";
+import { Activity, AlertTriangle, BellRing, Clock, Droplets, FileDown, FilePenLine, Loader2, MoreVertical, Pause, Play, Pencil, Plus, Power, Trash2, Boxes, Wrench } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { MachineWithSession } from "../../../server/machines";
 
 /** Global drag payload registry so any board can receive a dragged tile. */
 const DRAG_KEY = "skti-machine-swap";
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const csv = toCsv(rows);
+  // The BOM makes Excel read UTF-8 correctly instead of mangling accents.
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export function readDraggedMachineId(dt: DataTransfer | null): number | null {
   const raw = dt?.getData(DRAG_KEY) ?? "";
@@ -156,6 +171,63 @@ export function FloorMachineChip({
 
   const isPending = swapMachine.isPending || sendToStorage.isPending;
 
+  const [historyPending, setHistoryPending] = useState(false);
+
+  /** Fetch this machine's last 15 days of sessions and save them as a CSV. */
+  async function exportHistory() {
+    setHistoryPending(true);
+    try {
+      const history = await utils.machines.history.fetch({ machineId: row.machine.id });
+      if (history.rows.length === 0) {
+        toast.info(`No sessions recorded on ${row.machine.label} in the last ${history.days} days`);
+        return;
+      }
+      const rows: string[][] = [
+        [
+          "Session ID",
+          "Patient ID",
+          "Display label",
+          "Nurse",
+          "Duration (min)",
+          "Started",
+          "Planned end",
+          "Ended",
+          "Isolation",
+          "Urgent",
+          "Paused (min)",
+          "Status",
+          "Started by",
+          "Ended by",
+        ],
+        ...history.rows.map(r => [
+          String(r.sessionId),
+          r.patientId,
+          r.displayLabel ?? "",
+          r.assignedNurse ?? "",
+          String(r.durationMinutes),
+          csvDate(r.startedAt),
+          csvDate(r.endsAt),
+          csvDate(r.endedAt),
+          r.isolationTag,
+          r.urgent ? "yes" : "no",
+          String(Math.round(r.pausedSeconds / 60)),
+          r.status,
+          r.startedBy ?? "",
+          r.endedBy ?? "",
+        ]),
+      ];
+      const safeLabel = row.machine.label.replace(/[^A-Za-z0-9._-]+/g, "-");
+      downloadCsv(`${safeLabel}-history-${csvDate(new Date()).slice(0, 10)}.csv`, rows);
+      toast.success(
+        `${row.machine.label}: ${history.rows.length} session${history.rows.length === 1 ? "" : "s"} exported`
+      );
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Could not export ${row.machine.label} history`);
+    } finally {
+      setHistoryPending(false);
+    }
+  }
+
   if (!occupied) {
     const chipContent = (
       <button
@@ -235,6 +307,22 @@ export function FloorMachineChip({
               <DropdownMenuItem onClick={() => setRenameOpen(true)} className="text-[13px]">
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit machine number
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-[13px]"
+                disabled={historyPending}
+                onSelect={event => {
+                  // Keep the menu from closing before the async fetch starts.
+                  event.preventDefault();
+                  void exportHistory();
+                }}
+              >
+                {historyPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="mr-2 h-4 w-4" />
+                )}
+                Download 15-day history
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

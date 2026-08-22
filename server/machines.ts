@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { getDb } from "./db";
 import { floors, machines, narrativeHistory, narrativeReports, sessions, waitingList } from "../drizzle/schema";
 
@@ -2165,4 +2165,96 @@ function machineDayMetricsInline(input: {
     };
   }
   return out;
+}
+
+/** How many days of session history a machine's export covers. */
+export const MACHINE_HISTORY_DAYS = 15;
+
+export type MachineHistoryRow = {
+  sessionId: number;
+  patientId: string;
+  displayLabel: string | null;
+  assignedNurse: string | null;
+  durationMinutes: number;
+  startedAt: Date;
+  endsAt: Date;
+  endedAt: Date | null;
+  isolationTag: "clean" | "dirty";
+  urgent: boolean;
+  pausedSeconds: number;
+  status: "active" | "ended";
+  startedBy: string | null;
+  endedBy: string | null;
+};
+
+export type MachineHistory = {
+  machine: { id: number; label: string; location: string; floorId: number | null };
+  days: number;
+  /** Inclusive UTC start of the window. */
+  since: Date;
+  rows: MachineHistoryRow[];
+};
+
+/**
+ * Session history for one machine over the last MACHINE_HISTORY_DAYS days,
+ * newest first. Read-only: nothing is deleted, the window is a filter only, so
+ * the End of Month report still sees the full month.
+ */
+export async function machineHistory(input: {
+  machineId: number;
+  days?: number;
+}): Promise<MachineHistory | undefined> {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const machineRows = await db
+    .select()
+    .from(machines)
+    .where(eq(machines.id, input.machineId))
+    .limit(1);
+  const machine = machineRows[0];
+  if (!machine) return undefined;
+
+  const days = input.days ?? MACHINE_HISTORY_DAYS;
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const rows = await db
+    .select({
+      sessionId: sessions.id,
+      patientId: sessions.patientId,
+      displayLabel: sessions.displayLabel,
+      assignedNurse: sessions.assignedNurse,
+      durationMinutes: sessions.durationMinutes,
+      startedAt: sessions.startedAt,
+      endsAt: sessions.endsAt,
+      endedAt: sessions.endedAt,
+      isolationTag: sessions.isolationTag,
+      urgent: sessions.urgent,
+      pausedSeconds: sessions.pausedSeconds,
+      status: sessions.status,
+      startedBy: sessions.startedBy,
+      endedBy: sessions.endedBy,
+    })
+    .from(sessions)
+    .where(and(eq(sessions.machineId, input.machineId), gte(sessions.startedAt, since)))
+    .orderBy(desc(sessions.startedAt));
+
+  return {
+    machine: {
+      id: machine.id,
+      label: machine.label,
+      location: machine.location,
+      floorId: machine.floorId ?? null,
+    },
+    days,
+    since,
+    // Raw driver rows can hand back timestamps as strings; coerce so the client
+    // always receives real Dates (same class of fix as monthReport).
+    rows: rows.map(r => ({
+      ...r,
+      startedAt: new Date(r.startedAt),
+      endsAt: new Date(r.endsAt),
+      endedAt: r.endedAt ? new Date(r.endedAt) : null,
+    })),
+  };
 }

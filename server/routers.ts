@@ -69,6 +69,25 @@ export const appRouter = router({
      *  client provides cross-device real-time sync. */
     list: publicProcedure.query(() => machineDb.listMachines()),
 
+    /**
+     * Session history for one machine over the last 15 days, newest first.
+     * Staff only — this exposes patient identifiers, so guests are rejected by
+     * staffOrAdminProcedure and nurses are scoped to their own board. Purely a
+     * read: nothing older is deleted.
+     */
+    history: staffOrAdminProcedure
+      .input(z.object({ machineId: z.number().int().positive() }))
+      .query(async ({ ctx, input }) => {
+        const history = await machineDb.machineHistory({ machineId: input.machineId });
+        if (!history) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Machine not found." });
+        }
+        if (history.machine.floorId !== null) {
+          requireFloorAccess(ctx.staff, history.machine.floorId, ctx.user);
+        }
+        return history;
+      }),
+
     /** Rename a machine (staff only). */
     updateLabel: staffOrAdminProcedure
       .input(
