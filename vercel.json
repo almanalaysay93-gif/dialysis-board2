@@ -6,10 +6,6 @@
   "outputDirectory": "dist/public",
   "rewrites": [
     {
-      "source": "/api/diag",
-      "destination": "/api"
-    },
-    {
       "source": "/api/trpc/:path*",
       "destination": "/api"
     },
